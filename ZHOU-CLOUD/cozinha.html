@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ZHOU CLOUD | COZINHA 🔪</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --red: #ff0000; --bg: #020202; }
+        body { background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; }
+        .futuristic { font-family: 'Orbitron', sans-serif; }
+        .glass { background: #0a0a0a; border: 1px solid #161616; border-radius: 15px; }
+        .nav-tab { flex: 1; text-align: center; padding: 15px; font-size: 10px; font-weight: 900; color: #444; border-bottom: 2px solid #161616; cursor: pointer; }
+        .nav-tab.active { color: var(--red); border-bottom-color: var(--red); }
+        .btn-send { background: linear-gradient(135deg, #700, var(--red)); font-weight: 900; text-transform: uppercase; border: none; }
+        input { background: #0d0d0d !important; border: 1px solid #161616 !important; color: #fff !important; text-align: center; border-radius: 8px; }
+    </style>
+</head>
+<body class="p-4">
+    <header class="text-center mb-6">
+        <h1 class="futuristic text-xl italic">ZHOU <span class="text-red-600">CLOUD</span></h1>
+        <p id="nome-loja" class="text-[10px] text-zinc-500 font-black uppercase mt-1">Carregando...</p>
+    </header>
+
+    <nav class="flex mb-6 glass overflow-hidden">
+        <div onclick="switchTab('reg')" id="tab-reg" class="nav-tab active">REGISTRADOS</div>
+        <div onclick="switchTab('fal')" id="tab-fal" class="nav-tab">FALTANTES</div>
+    </nav>
+
+    <div id="view-reg" class="space-y-3">
+        <div id="lista-produtos" class="grid grid-cols-1 gap-2"></div>
+        <button onclick="enviarMuitos()" class="btn-send w-full p-5 rounded-xl mt-6">ENVIAR SELECIONADOS 🚀</button>
+    </div>
+
+    <div id="view-fal" class="hidden space-y-3">
+        <div id="lista-faltas" class="space-y-2"></div>
+    </div>
+
+    <script>
+        const sb = supabase.createClient("https://jxwxvzvxaabzoajdhetw.supabase.co", "sb_publishable_MFyO9fL-XKBzrVC0SRBOuw_bqghFOzF");
+        const urlParams = new URLSearchParams(window.location.search);
+        const lojaId = urlParams.get('loja');
+        let itensParaEnviar = {};
+
+        // Lista de produtos que aparecem para o cozinheiro
+        const produtosBase = ["ARROZ", "FEIJÃO", "ÓLEO", "SAL", "AÇÚCAR", "CARNE MOÍDA", "FRANGO", "CEBOLA", "ALHO"];
+
+        async function init() {
+            if(!lojaId) return alert("Link Inválido!");
+            const { data } = await sb.from('unidades').select('nome').eq('id', lojaId).single();
+            document.getElementById('nome-loja').innerText = data?.nome || "LOJA NÃO ENCONTRADA";
+            renderProdutos();
+            carregarFaltas();
+        }
+
+        function renderProdutos() {
+            const cont = document.getElementById('lista-produtos');
+            cont.innerHTML = produtosBase.map(p => `
+                <div class="glass p-4 flex justify-between items-center">
+                    <span class="text-[11px] font-black uppercase">${p}</span>
+                    <input type="number" placeholder="0" oninput="setQtd('${p}', this.value)" class="w-20 p-2 font-bold">
+                </div>
+            `).join('');
+        }
+
+        function setQtd(nome, qtd) {
+            if(qtd > 0) itensParaEnviar[nome] = qtd;
+            else delete itensParaEnviar[nome];
+        }
+
+        async function enviarMuitos() {
+            const chaves = Object.keys(itensParaEnviar);
+            if(!chaves.length) return alert("Insira as quantidades!");
+            for(let nome of chaves) {
+                await sb.from('faltas').insert([{ unidade_id: lojaId, item_nome: nome, quantidade: itensParaEnviar[nome], status: 'pendente' }]);
+            }
+            alert("Pedidos Enviados!");
+            location.reload();
+        }
+
+        async function carregarFaltas() {
+            const { data } = await sb.from('faltas').select('*').eq('unidade_id', lojaId).eq('status', 'pendente');
+            const cont = document.getElementById('lista-faltas');
+            cont.innerHTML = data?.length ? data.map(f => `
+                <div class="glass p-4 border-l-4 border-red-600">
+                    <p class="text-[11px] font-black">${f.quantidade}x ${f.item_nome}</p>
+                    <p class="text-[8px] text-zinc-600 uppercase">Aguardando ADM</p>
+                </div>
+            `).join('') : '<p class="text-center text-zinc-700 py-10 uppercase text-[10px]">Sem pendências</p>';
+        }
+
+        function switchTab(tab) {
+            document.getElementById('view-reg').classList.toggle('hidden', tab !== 'reg');
+            document.getElementById('view-fal').classList.toggle('hidden', tab !== 'fal');
+            document.getElementById('tab-reg').classList.toggle('active', tab === 'reg');
+            document.getElementById('tab-fal').classList.toggle('active', tab === 'fal');
+            if(tab === 'fal') carregarFaltas();
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
